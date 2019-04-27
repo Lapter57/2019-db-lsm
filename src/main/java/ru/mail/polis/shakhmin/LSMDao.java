@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-
 import org.jetbrains.annotations.NotNull;
 
 import com.google.common.collect.Iterators;
@@ -24,13 +23,20 @@ import ru.mail.polis.Record;
 public final class LSMDao implements DAO {
 
     @NotNull
-    private MemTable memTable;
+    private final MemTable memTable;
 
     @NotNull
     private final List<Table> ssTables = new ArrayList<>();
     private final long flushThreshold;
     private long numFlushedTables;
 
+    /**
+     * Constructs a new DAO based on LSM tree.
+     *
+     * @param file local disk folder to persist the data to
+     * @param flushThreshold threshold of Memtable's size
+     * @throws IOException if an I/O error is thrown by a visitor method
+     */
     public LSMDao(
             @NotNull final File file,
             final long flushThreshold) throws IOException {
@@ -38,7 +44,9 @@ public final class LSMDao implements DAO {
         this.memTable = new MemTable(file);
         Files.walkFileTree(file.toPath(), new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(
+                    final Path file,
+                    final BasicFileAttributes attrs) throws IOException {
                 ssTables.add(new SSTable(file.toFile()));
                 numFlushedTables++;
                 return FileVisitResult.CONTINUE;
@@ -51,7 +59,9 @@ public final class LSMDao implements DAO {
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         final var memIterator = memTable.iterator(from);
         Iterator<Row> alive;
-        if (!ssTables.isEmpty()) {
+        if (ssTables.isEmpty()) {
+            alive = aliveIterator(memIterator);
+        } else {
             final var iterators = new ArrayList<Iterator<Row>>();
             iterators.add(memIterator);
             for (final var ssTable: ssTables) {
@@ -60,8 +70,6 @@ public final class LSMDao implements DAO {
             final var merged = Iterators.mergeSorted(iterators, Row.COMPARATOR);
             final var collapsed = Iters.collapseEquals(merged);
             alive = aliveIterator(collapsed);
-        } else {
-            alive = aliveIterator(memIterator);
         }
         return Iterators.transform(alive,
                 r -> Record.of(r.getKey(), r.getValue().getData()));
@@ -71,12 +79,13 @@ public final class LSMDao implements DAO {
     private Iterator<Row> aliveIterator(@NotNull final Iterator<Row> iter) {
         final var dead = new ArrayList<>();
         return Iterators.filter(iter, r -> {
-            if(!r.getValue().isRemoved() && !dead.contains(r.getKey())) {
-                return true;
-            } else if (r.getValue().isRemoved()){
-                dead.add(r.getKey());
+            if (r.getValue().isRemoved() || dead.contains(r.getKey())) {
+                if (r.getValue().isRemoved()){
+                    dead.add(r.getKey());
+                }
+                return false;
             }
-            return false;
+            return true;
         });
     }
 

@@ -11,7 +11,7 @@ public final class Row implements Comparable<Row> {
     private final ByteBuffer key;
 
     @NotNull
-    private Value value;
+    private final Value value;
 
     static final Comparator<Row> COMPARATOR =
             Comparator.comparing(Row::getKey)
@@ -43,8 +43,8 @@ public final class Row implements Comparable<Row> {
     public static long getSizeOfFlushedRow(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
-        return Integer.BYTES + key.remaining() + Long.BYTES +
-                (value.remaining() == 0 ? 0 : Long.BYTES + value.remaining());
+        return Integer.BYTES + key.remaining() + Long.BYTES
+                + (value.remaining() == 0 ? 0 : Long.BYTES + value.remaining());
     }
 
     @Override

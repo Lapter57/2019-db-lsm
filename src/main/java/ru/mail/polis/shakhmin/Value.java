@@ -45,7 +45,7 @@ public final class Value implements Comparable<Value> {
 
     @Override
     public int compareTo(@NotNull final Value value) {
-        return Long.compare((value.timestamp < 0)? -value.timestamp : value.timestamp,
-                (timestamp < 0)? -timestamp: timestamp);
+        return Long.compare(value.timestamp < 0? -value.timestamp : value.timestamp,
+                timestamp < 0? -timestamp: timestamp);
     }
 }

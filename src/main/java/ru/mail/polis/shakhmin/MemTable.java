@@ -58,18 +58,24 @@ public final class MemTable implements Table {
         }
     }
 
+    /**
+     * Flush of data to disk as SSTable.
+     *
+     * @param fileName the name of the file to which the data is flushed
+     * @throws IOException if an I/O error occurs
+     */
     public void flush(@NotNull final String fileName) throws IOException {
         long offset = 0L;
         final var offsets = new ArrayList<Long>();
         offsets.add(offset);
-        try (final var fc = FileChannel.open(
+        try (var fc = FileChannel.open(
                 Path.of(flushDir.getAbsolutePath(), fileName + SUFFIX),
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             for (final var row: storage.values()) {
                 final var key = row.getKey();
                 final var value = row.getValue();
                 final var sizeRow = Row.getSizeOfFlushedRow(key, value.getData());
-                var rowBuffer = ByteBuffer.allocate((int) sizeRow)
+                final var rowBuffer = ByteBuffer.allocate((int) sizeRow)
                         .putInt(key.remaining())
                         .put(key.duplicate())
                         .putLong(value.getTimestamp());
@@ -93,7 +99,7 @@ public final class MemTable implements Table {
                          .flip();
             fc.write(offsetsBuffer);
         }
-        storage = new TreeMap<>();
+        storage.clear();
         sizeInBytes = 0;
     }
 

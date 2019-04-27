@@ -23,8 +23,14 @@ public final class SSTable implements Table {
     @NotNull
     private final ByteBuffer rows;
 
+    /**
+     * Constructs a new SSTable.
+     *
+     * @param file file where data of SSTable is stored
+     * @throws IOException if an I/O error occurs
+     */
     public SSTable(@NotNull final File file) throws IOException {
-        try (final var fc = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
+        try (var fc = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
             final var mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size())
                     .order(ByteOrder.BIG_ENDIAN);
             this.rowsNumber = mapped.getLong(mapped.limit() - Long.BYTES);
@@ -82,7 +88,7 @@ public final class SSTable implements Table {
         final var row = rowAt(offsetPosition);
         final var key = keyAt(row);
         final var timestamp = timestampAt(row);
-        var value = (timestamp < 0)
+        final var value = timestamp < 0
                 ? Value.tombstone(-timestamp)
                 : Value.of(timestamp, valueAt(row));
         return Row.of(key, value);
@@ -94,12 +100,13 @@ public final class SSTable implements Table {
         while(left <= right) {
             final long mid = (left + right) >>> 1;
             final int cmp = keyAt(rowAt(mid)).compareTo(key);
-            if (cmp < 0)
+            if (cmp < 0) {
                 left = mid + 1;
-            else if (cmp > 0)
+            } else if (cmp > 0) {
                 right = mid - 1;
-            else
+            } else {
                 return mid;
+            }
         }
         return left;
     }
@@ -108,11 +115,11 @@ public final class SSTable implements Table {
     @Override
     public Iterator<Row> iterator(@NotNull final ByteBuffer from) throws IOException {
         long position = position(from);
-        final var rows = new ArrayList<Row>();
+        final var rowsList = new ArrayList<Row>();
         for (; position < rowsNumber; position++) {
-            rows.add(transform(position));
+            rowsList.add(transform(position));
         }
-        return rows.iterator();
+        return rowsList.iterator();
     }
 
     @Override
