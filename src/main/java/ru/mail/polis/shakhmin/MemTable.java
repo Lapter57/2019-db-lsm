@@ -18,7 +18,7 @@ public final class MemTable implements Table {
     public static final String SUFFIX = ".txt";
 
     @NotNull
-    private NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
+    private final NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
     private long sizeInBytes;
 
     @NotNull
