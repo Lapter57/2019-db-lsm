@@ -15,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
 
 public final class MemTable implements Table {
 
-    public static final String SUFFIX = ".txt";
+    private static final String SUFFIX = ".txt";
 
     @NotNull
     private final NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
@@ -38,13 +38,13 @@ public final class MemTable implements Table {
     public void upsert(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) throws IOException {
-        final var prev = storage.get(key);
+        final var prev = storage.put(key, Row.of(key,
+                Value.of(System.currentTimeMillis(), value)));
         if (prev == null) {
             sizeInBytes += Row.getSizeOfFlushedRow(key, value);
         } else {
             sizeInBytes += value.remaining();
         }
-        storage.put(key, Row.of(key, Value.of(System.currentTimeMillis(), value)));
     }
 
     @Override

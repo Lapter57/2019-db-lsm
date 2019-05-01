@@ -9,6 +9,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -23,6 +24,8 @@ public final class SSTable implements Table {
     @NotNull
     private final ByteBuffer rows;
 
+    @NotNull final File file;
+
     /**
      * Constructs a new SSTable.
      *
@@ -30,6 +33,7 @@ public final class SSTable implements Table {
      * @throws IOException if an I/O error occurs
      */
     public SSTable(@NotNull final File file) throws IOException {
+        this.file = file;
         try (var fc = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
             final var mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size())
                     .order(ByteOrder.BIG_ENDIAN);
@@ -114,12 +118,7 @@ public final class SSTable implements Table {
     @NotNull
     @Override
     public Iterator<Row> iterator(@NotNull final ByteBuffer from) throws IOException {
-        long position = position(from);
-        final var rowsList = new ArrayList<Row>();
-        for (; position < rowsNumber; position++) {
-            rowsList.add(transform(position));
-        }
-        return rowsList.iterator();
+        return new SSTableIterator(from);
     }
 
     @Override
@@ -136,6 +135,29 @@ public final class SSTable implements Table {
 
     @Override
     public long sizeInBytes() {
-        throw new UnsupportedOperationException();
+        return file.length();
+    }
+
+    private class SSTableIterator implements Iterator<Row> {
+        private long position;
+
+        SSTableIterator(@NotNull final ByteBuffer from) {
+            this.position = position(from);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return position < rowsNumber;
+        }
+
+        @Override
+        public Row next() {
+            if(!hasNext()){
+                throw new NoSuchElementException();
+            }
+            final var row = transform(position);
+            position++;
+            return row;
+        }
     }
 }
