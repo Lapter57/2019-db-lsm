@@ -36,7 +36,7 @@ public final class LSMDao implements DAO {
      * Constructs a new DAO based on LSM tree.
      *
      * @param flushDir local disk folder to persist the data to
-     * @param flushThresholdInBytes threshold of Memtable's size
+     * @param flushThresholdInBytes threshold of size of Memtable
      * @throws IOException if an I/O error is thrown by a visitor method
      */
     public LSMDao(
