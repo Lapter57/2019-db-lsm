@@ -2,7 +2,6 @@ package ru.mail.polis.shakhmin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -45,10 +44,6 @@ public final class MemTable implements Table {
         } else if (!prev.getValue().isRemoved()){
             sizeInBytes -= prev.getValue().getData().remaining();
         }
-    }
-
-    public Collection<Row> getRows() {
-        return storage.values();
     }
 
     public void clear() {

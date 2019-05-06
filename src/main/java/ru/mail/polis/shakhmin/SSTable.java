@@ -194,7 +194,8 @@ public final class SSTable implements Table {
         try (var fc = FileChannel.open(
                 flushedFile,
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            for (final var row: memTable.getRows()) {
+            for (final var iter = memTable.iterator(ByteBuffer.allocate(0)); iter.hasNext();) {
+                final var row = iter.next();
                 final var key = row.getKey();
                 final var value = row.getValue();
                 final var sizeRow = Row.getSizeOfFlushedRow(key, value.getData());

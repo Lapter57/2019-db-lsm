@@ -25,7 +25,7 @@ import static ru.mail.polis.shakhmin.Value.TOMBSTONE_DATA;
 
 public final class LSMDao implements DAO {
 
-    private static final String SUFFIX = ".txt";
+    private static final String SUFFIX = ".bin";
     @NotNull private final MemTable memTable = new MemTable();
     @NotNull private final List<Table> ssTables = new ArrayList<>();
     @NotNull private final File flushDir;
@@ -110,17 +110,14 @@ public final class LSMDao implements DAO {
     }
 
     private void flushAndLoad() throws IOException {
-        final var path = new StringBuilder();
-        path.append(flushDir.getAbsolutePath())
-            .append('/')
-            .append(nameFlushedTable())
-            .append(SUFFIX);
+        final var path = Path.of(flushDir.getAbsolutePath(),
+                nameFlushedTable() + SUFFIX);
         SSTable.flush(
-                Path.of(path.toString()),
+                path,
                 memTable);
         ssTables.add(new SSTable(
-                new File(path.toString()),
-                serialNumberSStable.getAndIncrement()));
+                new File(path.toAbsolutePath().toString()),
+                serialNumberSStable.get() - 1L));
     }
 
     @NotNull
