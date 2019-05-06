@@ -203,7 +203,7 @@ public final class SSTable implements Table {
                         .putInt(key.remaining())
                         .put(key.duplicate())
                         .putLong(value.getTimestamp());
-                if (!value.isRemoved()) {
+                if (!value.isRemoved() && value.getData().remaining() != 0) {
                     final var data = value.getData();
                     rowBuffer.putLong(data.remaining())
                             .put(data.duplicate());
