@@ -6,7 +6,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.LongBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -15,15 +17,11 @@ import org.jetbrains.annotations.NotNull;
 
 public final class SSTable implements Table {
 
+    @NotNull private final LongBuffer offsets;
+    @NotNull private final ByteBuffer rows;
+    @NotNull private final File file;
     private final long rowsNumber;
-
-    @NotNull
-    private final LongBuffer offsets;
-
-    @NotNull
-    private final ByteBuffer rows;
-
-    @NotNull final File file;
+    private final long serialNumber;
 
     /**
      * Constructs a new SSTable.
@@ -31,8 +29,23 @@ public final class SSTable implements Table {
      * @param file file where data of SSTable is stored
      * @throws IOException if an I/O error occurs
      */
-    public SSTable(@NotNull final File file) throws IOException {
+
+    /**
+     * Constructs a new SSTable.
+     *
+     * @param file file where data of SSTable is stored
+     * @param serialNumber the serial number of SStable
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if serial number less than 0
+     */
+    public SSTable(
+            @NotNull final File file,
+            final long serialNumber) throws IOException, IllegalArgumentException {
+        if (serialNumber < 0) {
+            throw new IllegalArgumentException("Serial number must not be less than 0");
+        }
         this.file = file;
+        this.serialNumber = serialNumber;
         try (var fc = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
             final var mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size())
                     .order(ByteOrder.BIG_ENDIAN);
@@ -94,7 +107,7 @@ public final class SSTable implements Table {
         final var value = timestamp < 0
                 ? Value.tombstone(-timestamp)
                 : Value.of(timestamp, valueAt(row));
-        return Row.of(key, value);
+        return Row.of(key, value, serialNumber);
     }
 
     private long position(@NotNull final ByteBuffer key) {
@@ -137,6 +150,11 @@ public final class SSTable implements Table {
         return file.length();
     }
 
+    @Override
+    public long serialNumber() {
+        return serialNumber;
+    }
+
     private class SSTableIterator implements Iterator<Row> {
         private long position;
 
@@ -158,5 +176,52 @@ public final class SSTable implements Table {
             position++;
             return row;
         }
+    }
+
+    /**
+     * Flush of data to disk as SSTable.
+     *
+     * @param flushedFile the path of the file to which the data is flushed
+     * @param memTable MemTable
+     * @throws IOException if an I/O error occurs
+     */
+    public static void flush(
+            @NotNull final Path flushedFile,
+            @NotNull final MemTable memTable) throws IOException {
+        long offset = 0L;
+        final var offsets = new ArrayList<Long>();
+        offsets.add(offset);
+        try (var fc = FileChannel.open(
+                flushedFile,
+                StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            for (final var row: memTable.getRows()) {
+                final var key = row.getKey();
+                final var value = row.getValue();
+                final var sizeRow = Row.getSizeOfFlushedRow(key, value.getData());
+                final var rowBuffer = ByteBuffer.allocate((int) sizeRow)
+                        .putInt(key.remaining())
+                        .put(key.duplicate())
+                        .putLong(value.getTimestamp());
+                if (!value.isRemoved()) {
+                    final var data = value.getData();
+                    rowBuffer.putLong(data.remaining())
+                            .put(data.duplicate());
+                }
+                offset += sizeRow;
+                offsets.add(offset);
+                rowBuffer.flip();
+                fc.write(rowBuffer);
+            }
+            offsets.remove(offsets.size() - 1);
+            final var offsetsBuffer = ByteBuffer.allocate(
+                    offsets.size() * Long.BYTES + Long.BYTES);
+            for (final var anOffset: offsets) {
+                offsetsBuffer.putLong(anOffset);
+            }
+            offsetsBuffer.putLong(offsets.size())
+                    .flip();
+            fc.write(offsetsBuffer);
+        }
+        memTable.clear();
     }
 }

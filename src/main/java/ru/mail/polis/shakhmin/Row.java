@@ -7,27 +7,24 @@ import org.jetbrains.annotations.NotNull;
 
 public final class Row implements Comparable<Row> {
 
-    @NotNull
-    private final ByteBuffer key;
-
-    @NotNull
-    private final Value value;
-
-    static final Comparator<Row> COMPARATOR =
-            Comparator.comparing(Row::getKey)
-                      .thenComparing(Row::getValue);
+    @NotNull private final ByteBuffer key;
+    @NotNull private final Value value;
+    private final long tableId;
 
     private Row(
             @NotNull final ByteBuffer key,
-            @NotNull final Value value) {
+            @NotNull final Value value,
+            final long tableId) {
         this.key = key;
         this.value = value;
+        this.tableId = tableId;
     }
 
     public static Row of(
             @NotNull final ByteBuffer key,
-            @NotNull final Value value) {
-        return new Row(key, value);
+            @NotNull final Value value,
+            final long tableId) {
+        return new Row(key, value, tableId);
     }
 
     @NotNull
@@ -40,6 +37,10 @@ public final class Row implements Comparable<Row> {
         return value;
     }
 
+    public long getTableId() {
+        return tableId;
+    }
+
     public static long getSizeOfFlushedRow(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
@@ -49,6 +50,15 @@ public final class Row implements Comparable<Row> {
 
     @Override
     public int compareTo(@NotNull final Row row) {
-        return COMPARATOR.compare(this, row);
+        final int cmp = Comparator.comparing(Row::getKey)
+                .thenComparing(Row::getValue)
+                .compare(this, row);
+        if (cmp != 0) {
+            return cmp;
+        } else {
+            return Comparator
+                    .comparing(Row::getTableId)
+                    .compare(row, this);
+        }
     }
 }

@@ -8,10 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -25,11 +25,11 @@ import static ru.mail.polis.shakhmin.Value.TOMBSTONE_DATA;
 
 public final class LSMDao implements DAO {
 
-    @NotNull
-    private final MemTable memTable;
-
-    @NotNull
-    private final List<Table> ssTables = new ArrayList<>();
+    private static final String SUFFIX = ".txt";
+    @NotNull private final MemTable memTable = new MemTable();
+    @NotNull private final List<Table> ssTables = new ArrayList<>();
+    @NotNull private final File flushDir;
+    @NotNull private final AtomicLong serialNumberSStable;
     private final long flushThresholdInBytes;
 
     /**
@@ -43,13 +43,19 @@ public final class LSMDao implements DAO {
             @NotNull final File flushDir,
             final long flushThresholdInBytes) throws IOException {
         this.flushThresholdInBytes = flushThresholdInBytes;
-        this.memTable = new MemTable(flushDir);
+        this.flushDir = flushDir;
+        this.serialNumberSStable = new AtomicLong();
         Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(
-                    final Path file,
+                    final Path path,
                     final BasicFileAttributes attrs) throws IOException {
-                ssTables.add(new SSTable(file.toFile()));
+                final File file = path.toFile();
+                final String fileName = file.getName().split("\\.")[0];
+                final long serialNumber = Long.valueOf(fileName.split("_")[1]);
+                serialNumberSStable.set(
+                        Math.max(serialNumberSStable.get(), serialNumber + 1L));
+                ssTables.add(new SSTable(file, serialNumber));
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -64,7 +70,7 @@ public final class LSMDao implements DAO {
         for (final var ssTable: ssTables) {
             iterators.add(ssTable.iterator(from));
         }
-        final var merged = Iterators.mergeSorted(iterators, Row.COMPARATOR);
+        final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
         final var collapsed = Iters.collapseEquals(merged, Row::getKey);
         final var alive = Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
         return Iterators.transform(alive,
@@ -77,7 +83,7 @@ public final class LSMDao implements DAO {
             @NotNull final ByteBuffer value) throws IOException {
         if (memTable.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, value) >= flushThresholdInBytes) {
-            memTable.flush(nameFlushedTable());
+            flushAndLoad();
         }
         memTable.upsert(key, value);
     }
@@ -86,18 +92,39 @@ public final class LSMDao implements DAO {
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         if (memTable.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, TOMBSTONE_DATA) >= flushThresholdInBytes) {
-            memTable.flush(nameFlushedTable());
+            flushAndLoad();
         }
         memTable.remove(key);
     }
 
     @Override
     public void close() throws IOException {
-        memTable.flush(nameFlushedTable());
+        flush();
+    }
+
+    private void flush() throws IOException {
+        final var fileName = nameFlushedTable();
+        SSTable.flush(
+                Path.of(flushDir.getAbsolutePath(), fileName + SUFFIX),
+                memTable);
+    }
+
+    private void flushAndLoad() throws IOException {
+        final var path = new StringBuilder();
+        path.append(flushDir.getAbsolutePath())
+            .append('/')
+            .append(nameFlushedTable())
+            .append(SUFFIX);
+        SSTable.flush(
+                Path.of(path.toString()),
+                memTable);
+        ssTables.add(new SSTable(
+                new File(path.toString()),
+                serialNumberSStable.getAndIncrement()));
     }
 
     @NotNull
     private String nameFlushedTable() {
-        return "SSTable_" + LocalDateTime.now();
+        return "SSTable_" + serialNumberSStable.getAndIncrement();
     }
 }
