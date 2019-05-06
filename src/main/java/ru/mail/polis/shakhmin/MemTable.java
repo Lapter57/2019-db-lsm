@@ -15,9 +15,6 @@ public final class MemTable implements Table {
     private long sizeInBytes;
     private final long serialNumber = Long.MAX_VALUE;
 
-    public MemTable() {
-    }
-
     @NotNull
     @Override
     public Iterator<Row> iterator(@NotNull final ByteBuffer from) throws IOException {

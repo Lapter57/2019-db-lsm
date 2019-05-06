@@ -53,12 +53,12 @@ public final class Row implements Comparable<Row> {
         final int cmp = Comparator.comparing(Row::getKey)
                 .thenComparing(Row::getValue)
                 .compare(this, row);
-        if (cmp != 0) {
-            return cmp;
-        } else {
+        if (cmp == 0) {
             return Comparator
                     .comparing(Row::getTableId)
                     .compare(row, this);
+        } else {
+            return cmp;
         }
     }
 }
