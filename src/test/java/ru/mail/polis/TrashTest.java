@@ -71,9 +71,11 @@ class TrashTest extends TestBase {
     private static void createTrashFile(final File dir,
                                         final String name,
                                         final ByteBuffer content) throws IOException {
-        try (final FileChannel ch = FileChannel.open(
-                Paths.get(dir.getAbsolutePath(), name),
-                StandardOpenOption.CREATE)) {
+        try (final FileChannel ch =
+                     FileChannel.open(
+                             Paths.get(dir.getAbsolutePath(), name),
+                             StandardOpenOption.CREATE,
+                             StandardOpenOption.WRITE)) {
             ch.write(content);
         }
     }
