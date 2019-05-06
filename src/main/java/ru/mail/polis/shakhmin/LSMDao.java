@@ -26,6 +26,9 @@ import static ru.mail.polis.shakhmin.Value.TOMBSTONE_DATA;
 public final class LSMDao implements DAO {
 
     private static final String SUFFIX = ".bin";
+    private static final String PREFIX = "SSTable_";
+    private static final String REGEX = PREFIX + "\\d+" + SUFFIX;
+    
     @NotNull private final MemTable memTable = new MemTable();
     @NotNull private final List<Table> ssTables = new ArrayList<>();
     @NotNull private final File flushDir;
@@ -51,11 +54,13 @@ public final class LSMDao implements DAO {
                     final Path path,
                     final BasicFileAttributes attrs) throws IOException {
                 final File file = path.toFile();
-                final String fileName = file.getName().split("\\.")[0];
-                final long serialNumber = Long.valueOf(fileName.split("_")[1]);
-                serialNumberSStable.set(
-                        Math.max(serialNumberSStable.get(), serialNumber + 1L));
-                ssTables.add(new SSTable(file, serialNumber));
+                if (file.getName().matches(REGEX)) {
+                    final String fileName = file.getName().split("\\.")[0];
+                    final long serialNumber = Long.valueOf(fileName.split("_")[1]);
+                    serialNumberSStable.set(
+                            Math.max(serialNumberSStable.get(), serialNumber + 1L));
+                    ssTables.add(new SSTable(file, serialNumber));
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -122,6 +127,6 @@ public final class LSMDao implements DAO {
 
     @NotNull
     private String nameFlushedTable() {
-        return "SSTable_" + serialNumberSStable.getAndIncrement();
+        return PREFIX + serialNumberSStable.getAndIncrement();
     }
 }
