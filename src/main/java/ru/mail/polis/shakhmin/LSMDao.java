@@ -28,7 +28,7 @@ public final class LSMDao implements DAO {
     private static final String SUFFIX = ".bin";
     private static final String PREFIX = "SSTable_";
     private static final String REGEX = PREFIX + "\\d+" + SUFFIX;
-    
+
     @NotNull private final MemTable memTable = new MemTable();
     @NotNull private final List<Table> ssTables = new ArrayList<>();
     @NotNull private final File flushDir;
