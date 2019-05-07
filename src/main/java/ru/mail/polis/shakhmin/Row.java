@@ -11,29 +11,26 @@ public final class Row implements Comparable<Row> {
     @NotNull private final Value value;
     private final long serialNumber;
 
-    private static final Comparator<Row> COMPARATOR_KEY_VALUE =
+    private static final Comparator<Row> COMPARATOR =
             Comparator
                     .comparing(Row::getKey)
-                    .thenComparing(Row::getValue);
-
-    private static final Comparator<Row> COMPARATOR_SERIAL_NUMBER =
-            Comparator
-                    .comparing(Row::getSerialNumber);
+                    .thenComparing(Row::getValue)
+                    .thenComparing((r) -> -r.getSerialNumber());
 
     private Row(
             @NotNull final ByteBuffer key,
             @NotNull final Value value,
-            final long tableId) {
+            final long serialNumber) {
         this.key = key;
         this.value = value;
-        this.serialNumber = tableId;
+        this.serialNumber = serialNumber;
     }
 
     public static Row of(
             @NotNull final ByteBuffer key,
             @NotNull final Value value,
-            final long tableId) {
-        return new Row(key, value, tableId);
+            final long serialNumber) {
+        return new Row(key, value, serialNumber);
     }
 
     @NotNull
@@ -59,11 +56,6 @@ public final class Row implements Comparable<Row> {
 
     @Override
     public int compareTo(@NotNull final Row row) {
-        final int cmp = COMPARATOR_KEY_VALUE.compare(this, row);
-        if (cmp == 0) {
-            return COMPARATOR_SERIAL_NUMBER.compare(row, this);
-        } else {
-            return cmp;
-        }
+        return COMPARATOR.compare(this, row);
     }
 }
