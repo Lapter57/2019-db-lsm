@@ -19,34 +19,27 @@ public final class SSTable implements Table {
 
     @NotNull private final LongBuffer offsets;
     @NotNull private final ByteBuffer rows;
-    @NotNull private final File file;
     private final long rowsNumber;
     private final long serialNumber;
+    private final long sizeInBytes;
 
     /**
      * Constructs a new SSTable.
      *
-     * @param file file where data of SSTable is stored
-     * @throws IOException if an I/O error occurs
-     */
-
-    /**
-     * Constructs a new SSTable.
-     *
-     * @param file file where data of SSTable is stored
+     * @param path the path of the file where data of SSTable is stored
      * @param serialNumber the serial number of SStable
      * @throws IOException if an I/O error occurs
      * @throws IllegalArgumentException if serial number less than 0
      */
     public SSTable(
-            @NotNull final File file,
+            @NotNull final Path path,
             final long serialNumber) throws IOException, IllegalArgumentException {
         if (serialNumber < 0) {
             throw new IllegalArgumentException("Serial number must not be less than 0");
         }
-        this.file = file;
         this.serialNumber = serialNumber;
-        try (var fc = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
+        try (var fc = FileChannel.open(path, StandardOpenOption.READ)) {
+            this.sizeInBytes = fc.size();
             final var mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size())
                     .order(ByteOrder.BIG_ENDIAN);
             this.rowsNumber = mapped.getLong(mapped.limit() - Long.BYTES);
@@ -147,7 +140,7 @@ public final class SSTable implements Table {
 
     @Override
     public long sizeInBytes() {
-        return file.length();
+        return sizeInBytes;
     }
 
     @Override
@@ -182,20 +175,20 @@ public final class SSTable implements Table {
      * Flush of data to disk as SSTable.
      *
      * @param flushedFile the path of the file to which the data is flushed
-     * @param memTable MemTable
+     * @param rowsIterator the iterator to flush rows ({@link Row}
      * @throws IOException if an I/O error occurs
      */
     public static void flush(
             @NotNull final Path flushedFile,
-            @NotNull final MemTable memTable) throws IOException {
+            @NotNull final Iterator<Row> rowsIterator) throws IOException {
         long offset = 0L;
         final var offsets = new ArrayList<Long>();
         offsets.add(offset);
         try (var fc = FileChannel.open(
                 flushedFile,
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            for (final var iter = memTable.iterator(ByteBuffer.allocate(0)); iter.hasNext();) {
-                final var row = iter.next();
+            while (rowsIterator.hasNext()) {
+                final var row = rowsIterator.next();
                 final var key = row.getKey();
                 final var value = row.getValue();
                 final var sizeRow = Row.getSizeOfFlushedRow(key, value.getData());
@@ -223,6 +216,5 @@ public final class SSTable implements Table {
                     .flip();
             fc.write(offsetsBuffer);
         }
-        memTable.clear();
     }
 }

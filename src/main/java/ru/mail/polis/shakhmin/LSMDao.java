@@ -59,7 +59,7 @@ public final class LSMDao implements DAO {
                     final long serialNumber = Long.valueOf(fileName.split("_")[1]);
                     serialNumberSStable.set(
                             Math.max(serialNumberSStable.get(), serialNumber + 1L));
-                    ssTables.add(new SSTable(file, serialNumber));
+                    ssTables.add(new SSTable(file.toPath(), serialNumber));
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -111,7 +111,8 @@ public final class LSMDao implements DAO {
         final var fileName = nameFlushedTable();
         SSTable.flush(
                 Path.of(flushDir.getAbsolutePath(), fileName + SUFFIX),
-                memTable);
+                memTable.iterator(ByteBuffer.allocate(0)));
+        memTable.clear();
     }
 
     private void flushAndLoad() throws IOException {
@@ -119,10 +120,11 @@ public final class LSMDao implements DAO {
                 nameFlushedTable() + SUFFIX);
         SSTable.flush(
                 path,
-                memTable);
+                memTable.iterator(ByteBuffer.allocate(0)));
         ssTables.add(new SSTable(
-                new File(path.toAbsolutePath().toString()),
+                path.toAbsolutePath(),
                 serialNumberSStable.get() - 1L));
+        memTable.clear();
     }
 
     @NotNull

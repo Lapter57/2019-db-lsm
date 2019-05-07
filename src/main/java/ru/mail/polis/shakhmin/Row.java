@@ -9,7 +9,16 @@ public final class Row implements Comparable<Row> {
 
     @NotNull private final ByteBuffer key;
     @NotNull private final Value value;
-    private final long tableId;
+    private final long serialNumber;
+    @NotNull
+    private final static Comparator<Row> COMPARATOR_KEY_VALUE =
+            Comparator
+                    .comparing(Row::getKey)
+                    .thenComparing(Row::getValue);
+    @NotNull
+    private final static Comparator<Row> COMPARATOR_SERIAL_NUMBER =
+            Comparator
+                    .comparing(Row::getSerialNumber);
 
     private Row(
             @NotNull final ByteBuffer key,
@@ -17,7 +26,7 @@ public final class Row implements Comparable<Row> {
             final long tableId) {
         this.key = key;
         this.value = value;
-        this.tableId = tableId;
+        this.serialNumber = tableId;
     }
 
     public static Row of(
@@ -37,8 +46,8 @@ public final class Row implements Comparable<Row> {
         return value;
     }
 
-    public long getTableId() {
-        return tableId;
+    public long getSerialNumber() {
+        return serialNumber;
     }
 
     public static long getSizeOfFlushedRow(
@@ -50,13 +59,9 @@ public final class Row implements Comparable<Row> {
 
     @Override
     public int compareTo(@NotNull final Row row) {
-        final int cmp = Comparator.comparing(Row::getKey)
-                .thenComparing(Row::getValue)
-                .compare(this, row);
+        final int cmp = COMPARATOR_KEY_VALUE.compare(this, row);
         if (cmp == 0) {
-            return Comparator
-                    .comparing(Row::getTableId)
-                    .compare(row, this);
+            return COMPARATOR_SERIAL_NUMBER.compare(row, this);
         } else {
             return cmp;
         }
