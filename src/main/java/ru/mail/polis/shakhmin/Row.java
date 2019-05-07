@@ -10,13 +10,13 @@ public final class Row implements Comparable<Row> {
     @NotNull private final ByteBuffer key;
     @NotNull private final Value value;
     private final long serialNumber;
-    @NotNull
-    private final static Comparator<Row> COMPARATOR_KEY_VALUE =
+
+    private static final Comparator<Row> COMPARATOR_KEY_VALUE =
             Comparator
                     .comparing(Row::getKey)
                     .thenComparing(Row::getValue);
-    @NotNull
-    private final static Comparator<Row> COMPARATOR_SERIAL_NUMBER =
+
+    private static final Comparator<Row> COMPARATOR_SERIAL_NUMBER =
             Comparator
                     .comparing(Row::getSerialNumber);
 

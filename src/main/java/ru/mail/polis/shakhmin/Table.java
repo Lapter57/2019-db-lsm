@@ -8,9 +8,10 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * A sorted collection for storing rows ({@link Row}).
- *
+ *<p>
  * Each instance of this interface must have a serial number,
  * which indicates the relevance of the storing data.
+ * </p>
  */
 public interface Table {
     @NotNull

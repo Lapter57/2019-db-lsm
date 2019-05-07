@@ -1,6 +1,5 @@
 package ru.mail.polis.shakhmin;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
