@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,7 +22,7 @@ import ru.mail.polis.DAO;
 import ru.mail.polis.Iters;
 import ru.mail.polis.Record;
 
-import static ru.mail.polis.shakhmin.Value.TOMBSTONE_DATA;
+import static ru.mail.polis.shakhmin.Value.EMPTY_DATA;
 
 public final class LSMDao implements DAO {
 
@@ -69,6 +70,13 @@ public final class LSMDao implements DAO {
     @NotNull
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
+        final var alive = rowsIterator(from);
+        return Iterators.transform(alive,
+                r -> Record.of(r.getKey(), r.getValue().getData()));
+    }
+
+    @NotNull
+    private Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
         final var memIterator = memTable.iterator(from);
         final var iterators = new ArrayList<Iterator<Row>>();
         iterators.add(memIterator);
@@ -77,9 +85,7 @@ public final class LSMDao implements DAO {
         }
         final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
         final var collapsed = Iters.collapseEquals(merged, Row::getKey);
-        final var alive = Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
-        return Iterators.transform(alive,
-                r -> Record.of(r.getKey(), r.getValue().getData()));
+        return Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
     }
 
     @Override
@@ -88,7 +94,7 @@ public final class LSMDao implements DAO {
             @NotNull final ByteBuffer value) throws IOException {
         if (memTable.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, value) >= flushThresholdInBytes) {
-            flushAndLoad();
+            flushAndLoad(memTable.iterator(EMPTY_DATA));
         }
         memTable.upsert(key, value);
     }
@@ -96,31 +102,31 @@ public final class LSMDao implements DAO {
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         if (memTable.sizeInBytes()
-                + Row.getSizeOfFlushedRow(key, TOMBSTONE_DATA) >= flushThresholdInBytes) {
-            flushAndLoad();
+                + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
+            flushAndLoad(memTable.iterator(EMPTY_DATA));
         }
         memTable.remove(key);
     }
 
     @Override
     public void close() throws IOException {
-        flush();
+        if (memTable.sizeInBytes() != 0L) {
+            flush();
+        }
     }
 
     private void flush() throws IOException {
         final var fileName = nameFlushedTable();
         SSTable.flush(
                 Path.of(flushDir.getAbsolutePath(), fileName + SUFFIX),
-                memTable.iterator(ByteBuffer.allocate(0)));
+                memTable.iterator(EMPTY_DATA));
         memTable.clear();
     }
 
-    private void flushAndLoad() throws IOException {
+    private void flushAndLoad(@NotNull final Iterator<Row> rowsIterator) throws IOException {
         final var path = Path.of(flushDir.getAbsolutePath(),
                 nameFlushedTable() + SUFFIX);
-        SSTable.flush(
-                path,
-                memTable.iterator(ByteBuffer.allocate(0)));
+        SSTable.flush(path, rowsIterator);
         ssTables.add(new SSTable(
                 path.toAbsolutePath(),
                 serialNumberSStable.get() - 1L));
@@ -130,5 +136,31 @@ public final class LSMDao implements DAO {
     @NotNull
     private String nameFlushedTable() {
         return PREFIX + serialNumberSStable.getAndIncrement();
+    }
+
+    @Override
+    public void compact() throws IOException {
+        final var iterator = rowsIterator(EMPTY_DATA);
+        clearAll();
+        flushAndLoad(iterator);
+    }
+
+    private void clearAll() throws IOException {
+        memTable.clear();
+        ssTables.clear();
+        cleanDirectory();
+    }
+
+    private void cleanDirectory() throws IOException {
+        Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(
+                    final Path path,
+                    final BasicFileAttributes attrs) throws IOException {
+                Files.delete(path);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        serialNumberSStable.set(0);
     }
 }

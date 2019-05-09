@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 
 public final class Value implements Comparable<Value> {
 
-    public static final ByteBuffer TOMBSTONE_DATA = ByteBuffer.allocate(0);
+    public static final ByteBuffer EMPTY_DATA = ByteBuffer.allocate(0);
 
     private final long timestamp;
 
@@ -29,7 +29,7 @@ public final class Value implements Comparable<Value> {
 
     @NotNull
     public static Value tombstone(final long timestamp) {
-        return new Value(-timestamp, TOMBSTONE_DATA);
+        return new Value(-timestamp, EMPTY_DATA);
     }
 
     @NotNull
