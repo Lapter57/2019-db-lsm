@@ -10,9 +10,9 @@ import org.jetbrains.annotations.NotNull;
 
 public final class MemTable implements Table {
 
-    @NotNull private final NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
+    @NotNull private NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
     private long sizeInBytes;
-    private final long serialNumber = Long.MAX_VALUE;
+    private static final long SERIAL_NUMBER = Long.MAX_VALUE;
 
     @NotNull
     @Override
@@ -27,7 +27,7 @@ public final class MemTable implements Table {
         final var prev = storage.put(key, Row.of(
                 key,
                 Value.of(System.currentTimeMillis(), value),
-                serialNumber));
+                SERIAL_NUMBER));
         if (prev == null) {
             sizeInBytes += Row.getSizeOfFlushedRow(key, value);
         } else {
@@ -38,7 +38,7 @@ public final class MemTable implements Table {
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         final var tombstone = Value.tombstone(System.currentTimeMillis());
-        final var prev = storage.put(key, Row.of(key, tombstone, serialNumber));
+        final var prev = storage.put(key, Row.of(key, tombstone, SERIAL_NUMBER));
         if (prev == null) {
             sizeInBytes += Row.getSizeOfFlushedRow(key, tombstone.getData());
         } else if (!prev.getValue().isRemoved()){
@@ -47,13 +47,13 @@ public final class MemTable implements Table {
     }
 
     public void clear() {
-        storage.clear();
+        storage = new TreeMap<>();
         sizeInBytes = 0;
     }
 
     @Override
     public long serialNumber() {
-        return serialNumber;
+        return SERIAL_NUMBER;
     }
 
     @Override

@@ -21,6 +21,7 @@ import ru.mail.polis.DAO;
 import ru.mail.polis.Iters;
 import ru.mail.polis.Record;
 
+import static ru.mail.polis.shakhmin.Table.LOWEST_KEY;
 import static ru.mail.polis.shakhmin.Value.EMPTY_DATA;
 
 public final class LSMDao implements DAO {
@@ -30,7 +31,7 @@ public final class LSMDao implements DAO {
     private static final String REGEX = PREFIX + "\\d+" + SUFFIX;
 
     @NotNull private final MemTable memTable = new MemTable();
-    @NotNull private final List<Table> ssTables = new ArrayList<>();
+    @NotNull private List<Table> ssTables = new ArrayList<>();
     @NotNull private final File flushDir;
     @NotNull private final AtomicLong serialNumberSStable;
     private final long flushThresholdInBytes;
@@ -93,7 +94,7 @@ public final class LSMDao implements DAO {
             @NotNull final ByteBuffer value) throws IOException {
         if (memTable.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, value) >= flushThresholdInBytes) {
-            flushAndLoad(memTable.iterator(EMPTY_DATA));
+            flushAndLoad(memTable.iterator(LOWEST_KEY));
         }
         memTable.upsert(key, value);
     }
@@ -102,7 +103,7 @@ public final class LSMDao implements DAO {
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         if (memTable.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
-            flushAndLoad(memTable.iterator(EMPTY_DATA));
+            flushAndLoad(memTable.iterator(LOWEST_KEY));
         }
         memTable.remove(key);
     }
@@ -110,15 +111,15 @@ public final class LSMDao implements DAO {
     @Override
     public void close() throws IOException {
         if (memTable.sizeInBytes() != 0L) {
-            flush();
+            flush(memTable.iterator(LOWEST_KEY));
         }
     }
 
-    private void flush() throws IOException {
+    private void flush(@NotNull final Iterator<Row> rowsIterator) throws IOException {
         final var fileName = nameFlushedTable();
         SSTable.flush(
                 Path.of(flushDir.getAbsolutePath(), fileName + SUFFIX),
-                memTable.iterator(EMPTY_DATA));
+                rowsIterator);
         memTable.clear();
     }
 
@@ -139,14 +140,14 @@ public final class LSMDao implements DAO {
 
     @Override
     public void compact() throws IOException {
-        final var iterator = rowsIterator(EMPTY_DATA);
+        final var iterator = rowsIterator(LOWEST_KEY);
+        flush(iterator);
         clearAll();
-        flushAndLoad(iterator);
     }
 
     private void clearAll() throws IOException {
         memTable.clear();
-        ssTables.clear();
+        ssTables = new ArrayList<>();
         cleanDirectory();
     }
 
@@ -156,10 +157,18 @@ public final class LSMDao implements DAO {
             public FileVisitResult visitFile(
                     final Path path,
                     final BasicFileAttributes attrs) throws IOException {
+                final File file = path.toFile();
+                if (file.getName().matches(REGEX)) {
+                    final String fileName = file.getName().split("\\.")[0];
+                    final long serialNumber = Long.valueOf(fileName.split("_")[1]);
+                    if (serialNumber == serialNumberSStable.get() - 1L) {
+                        ssTables.add(new SSTable(file.toPath(), serialNumber));
+                        return FileVisitResult.CONTINUE;
+                    }
+                }
                 Files.delete(path);
                 return FileVisitResult.CONTINUE;
             }
         });
-        serialNumberSStable.set(0);
     }
 }
