@@ -21,7 +21,6 @@ import ru.mail.polis.DAO;
 import ru.mail.polis.Iters;
 import ru.mail.polis.Record;
 
-import static ru.mail.polis.shakhmin.Table.LOWEST_KEY;
 import static ru.mail.polis.shakhmin.Value.EMPTY_DATA;
 
 public final class LSMDao implements DAO {
@@ -29,6 +28,7 @@ public final class LSMDao implements DAO {
     private static final String SUFFIX = ".bin";
     private static final String PREFIX = "SSTable_";
     private static final String REGEX = PREFIX + "\\d+" + SUFFIX;
+    private static final ByteBuffer LOWEST_KEY = ByteBuffer.allocate(0);
 
     @NotNull private final MemTable memTable = new MemTable();
     @NotNull private List<Table> ssTables = new ArrayList<>();
